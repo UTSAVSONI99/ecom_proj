@@ -1,5 +1,4 @@
 import { Button } from "@/components/ui/button"
-
 import { formatCurrency } from "@/lib/formatters"
 import db from "@/lib/prisma"
 import Image from "next/image"
@@ -12,17 +11,22 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string)
 export default async function SuccessPage({
   searchParams,
 }: {
-  searchParams: { payment_intent: string }
+  searchParams: Promise<{ payment_intent?: string }>
 }) {
+  // ✅ Await searchParams
+  const params = await searchParams
+  if (!params.payment_intent) return notFound()
+
   const paymentIntent = await stripe.paymentIntents.retrieve(
-    searchParams.payment_intent
+    params.payment_intent
   )
-  if (paymentIntent.metadata.productId == null) return notFound()
+
+  if (!paymentIntent.metadata.productId) return notFound()
 
   const product = await db.product.findUnique({
     where: { id: paymentIntent.metadata.productId },
   })
-  if (product == null) return notFound()
+  if (!product) return notFound()
 
   const isSuccess = paymentIntent.status === "succeeded"
 
@@ -72,7 +76,7 @@ async function createDownloadVerification(productId: string) {
     await db.downloadVerification.create({
       data: {
         productId,
-        expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+        expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24), // 24 hrs
       },
     })
   ).id
